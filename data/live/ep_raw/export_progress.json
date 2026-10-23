@@ -1,0 +1,13 @@
+{
+  "phase_idx": 3,
+  "phase_tag": "",
+  "next_index": 0,
+  "total": 87,
+  "periods": "M1,M5,D",
+  "done": true,
+  "trading_day": "20260916",
+  "m1_bars": 10000,
+  "live_phase_idx": 0,
+  "live_next_index": 0,
+  "updated": "2026-09-16 08:56:48"
+}
