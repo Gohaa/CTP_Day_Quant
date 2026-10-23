@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>期货 AI · 临期期权筛</title>
+<style>
+:root {
+  --bg:#0c0e12; --panel:#161a22; --border:#323a46;
+  --text:#dce1e6; --muted:#828c9b; --up:#e93030; --ok:#00be5a;
+  --mono:Consolas,'Courier New',monospace;
+  --sans:'Microsoft YaHei','PingFang SC',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+#topbar{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--up);text-decoration:none;letter-spacing:.08em}
+.nav-a{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:3px 8px;border:1px solid var(--border)}
+.nav-a.on,.nav-a:hover{color:#fff;border-color:var(--up)}
+#status{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted)}
+#wrap{padding:14px 16px 32px;max-width:1400px}
+h1{font-size:16px;margin-bottom:6px}
+.hint{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;font-family:var(--mono);font-size:11px}
+.stat{background:var(--panel);border:1px solid var(--border);padding:8px 10px}
+.stat b{color:#fff}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+th,td{border-bottom:1px solid #1a1e26;padding:5px 6px;text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:500;text-align:right}
+td.l,th.l{text-align:left}
+tr.cheap td{color:#ffd080}
+.err{color:var(--up);font-family:var(--mono);font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <a class="logo" href="/">QUANT_SEV</a>
+  <a class="nav-a" href="/">行情</a>
+  <a class="nav-a on" href="/option-screen">期权筛</a>
+  <a class="nav-a" href="/analyze">分析</a>
+  <a class="nav-a" href="/equity">收益</a>
+  <a class="nav-a" href="/backtest">回测</a>
+  <span id="status">加载中…</span>
+</div>
+<div id="wrap">
+  <h1>临期期权 · 时间价值低估</h1>
+  <div class="hint">只读名单，默认不发单。DTE = ExpireDate − as_of（0 &lt; DTE &lt; 30），标的限制主力/次主力 UnderlyingInstrID。TheoTV = Black-76 − 内在价值。先跑 <code>quant_sev --option-screen</code>。</div>
+  <div id="stats" class="stats"></div>
+  <div id="body"></div>
+</div>
+<script>
+function n(x, d){ if(x==null || !isFinite(x)) return "—"; return Number(x).toFixed(d==null?2:d); }
+function rowsHtml(list){
+  if(!list || !list.length) return "<div class='hint'>无</div>";
+  const head = "<tr><th class='l'>合约</th><th class='l'>标的</th><th>CP</th><th>DTE</th><th>到期</th><th>K</th><th>S</th><th>现价</th><th>内在</th><th>MarketTV</th><th>TheoTV</th><th>Ratio</th><th>Diff</th><th>来源</th></tr>";
+  const body = list.slice(0,400).map(r => {
+    const cls = r.cheap ? " class='cheap'" : "";
+    return `<tr${cls}><td class='l'>${r.instrument_id||""}</td><td class='l'>${r.underlying_id||""}</td><td>${r.cp||r.options_type||""}</td><td>${r.dte??""}</td><td>${r.expire_date||""}</td><td>${n(r.strike,2)}</td><td>${n(r.spot,2)}</td><td>${n(r.opt_px,2)}</td><td>${n(r.intrinsic,2)}</td><td>${n(r.market_tv,2)}</td><td>${n(r.theo_tv,2)}</td><td>${n(r.ratio,3)}</td><td>${n(r.diff,2)}</td><td class='l'>${r.quote_source||""}</td></tr>`;
+  }).join("");
+  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+fetch("/api/option-screen").then(r=>r.json()).then(d=>{
+  const st = document.getElementById("status");
+  const stats = document.getElementById("stats");
+  const body = document.getElementById("body");
+  if(d.error && !(d.near||[]).length){
+    st.textContent = d.error;
+    body.innerHTML = `<div class="err">${d.error}</div>`;
+    return;
+  }
+  st.textContent = (d.path||"") + "  as_of=" + (d.as_of||"");
+  stats.innerHTML = [
+    ["as_of", d.as_of],
+    ["trading_day", d.trading_day],
+    ["临期", d.near_n ?? (d.near||[]).length],
+    ["低估", d.cheap_n ?? (d.cheap||[]).length],
+    ["订阅", (d.subscribe||[]).length],
+    ["HV", d.hv],
+    ["发单", d.orders_placed ? "是" : "否"],
+  ].map(([k,v])=>`<div class="stat">${k} <b>${v??"—"}</b></div>`).join("");
+  body.innerHTML = `<h1 style="margin-top:8px">低估（cheap）</h1>${rowsHtml(d.cheap||[])}<h1 style="margin-top:18px">临期全表</h1>${rowsHtml(d.near||[])}`;
+}).catch(e=>{
+  document.getElementById("status").textContent = String(e);
+  document.getElementById("body").innerHTML = `<div class="err">${e}</div>`;
+});
+</script>
+</body>
+</html>

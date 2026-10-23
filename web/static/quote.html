@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>期货 AI · 行情</title>
+<style>
+:root {
+  --bg:#0c0e12; --panel:#161a22; --border:#323a46; --grid:#28303c;
+  --text:#dce1e6; --muted:#828c9b; --up:#e93030; --dn:#00c8d2; --dn2:#00be5a;
+  --avg:#e6b428; --line:#f0f0f5; --dash:#b43c3c; --sel:#234678;
+  --ma5:#f0f0f5; --ma10:#e6b428; --ma20:#dc64c8; --ma60:#50c878;
+  --mono:Consolas,'Courier New',monospace;
+  --sans:'Microsoft YaHei','PingFang SC',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
+::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+
+#topbar{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
+.logo{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--up);text-decoration:none;letter-spacing:.08em}
+.nav-a{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:3px 8px;border:1px solid var(--border)}
+.nav-a.on,.nav-a:hover{color:#fff;border-color:var(--up)}
+#status{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted);max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#layout{display:grid;grid-template-columns:268px minmax(0,1fr) 300px;height:calc(100vh - 36px);min-height:0}
+#watch,#center,#side{min-width:0;min-height:0;overflow:hidden}
+#watch{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100%}
+.w-head{padding:6px;border-bottom:1px solid var(--border);flex-shrink:0}
+.w-head input{width:100%;font-family:var(--mono);font-size:11px;background:#0c0e12;border:1px solid var(--border);color:var(--text);padding:5px 7px;outline:none}
+.w-count{margin-top:4px;font-family:var(--mono);font-size:9px;color:var(--muted)}
+.w-cols{display:grid;grid-template-columns:1.2fr 70px .7fr .65fr;padding:3px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);flex-shrink:0}
+#wlist{flex:1 1 0;min-height:0;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain}
+.wrow{display:grid;grid-template-columns:1.2fr 70px .7fr .65fr;align-items:center;padding:5px 8px;cursor:pointer;border-bottom:1px solid #1a1e26;font-family:var(--mono);font-size:11px}
+.wrow:hover{background:#1a2030}
+.wrow.on{background:rgba(35,70,120,.45);box-shadow:inset 2px 0 0 var(--up)}
+.w-sym{color:#fff;font-weight:600}
+.w-name{color:var(--muted);font-size:9px;margin-top:1px;font-family:var(--sans)}
+.w-spark canvas{width:70px;height:26px;display:block}
+.w-px,.w-chg{text-align:right;font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .dn{color:var(--dn2)} .flat{color:var(--muted)}
+
+#center{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+#toolbar{height:40px;display:flex;align-items:center;gap:4px;padding:0 8px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0}
+.btn{font-family:var(--mono);font-size:11px;padding:5px 10px;border:1px solid var(--border);background:#12161e;color:var(--muted);cursor:pointer}
+.btn:hover{color:#fff}
+.btn.on{color:#fff;background:var(--sel);border-color:#4a6a9a}
+#sym-title{margin-left:12px;font-family:var(--mono);font-size:12px;color:#fff}
+#sym-title span{color:var(--muted);margin-left:8px;font-size:10px}
+.nav-group{margin-left:auto;display:flex;gap:4px}
+#hud{height:22px;display:flex;align-items:center;gap:10px;padding:0 10px;font-family:var(--mono);font-size:11px;color:var(--muted);border-bottom:1px solid #1a1e26;flex-shrink:0;overflow:hidden}
+#hud b{color:#fff;font-weight:500;margin-left:3px}
+#chart-wrap{flex:1;position:relative;min-height:0}
+#main-canvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+#chart-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--muted);pointer-events:none;background:rgba(12,14,18,.4)}
+
+#side{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;height:100%}
+#side-top{flex-shrink:0;overflow:auto;max-height:52%}
+.sec{padding:10px 12px;border-bottom:1px solid var(--border)}
+.sec-t{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
+#q-last{font-family:var(--mono);font-size:26px;font-weight:700}
+#q-chg{font-family:var(--mono);font-size:12px;margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px}
+.cell .lbl{font-family:var(--mono);font-size:9px;color:var(--muted)}
+.cell .val{font-family:var(--mono);font-size:12px;margin-top:2px}
+#depth{font-family:var(--mono);font-size:11px}
+.drow{display:grid;grid-template-columns:36px 1fr 1fr;gap:6px;padding:2px 0}
+.meta{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7}
+#chip-sec{flex:1 1 0;min-height:120px;display:flex;flex-direction:column;overflow:hidden;padding-bottom:6px}
+#chip{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 10px 8px}
+.chip-row{display:grid;grid-template-columns:58px 1fr 40px 34px;gap:6px;align-items:center;height:15px;font-family:var(--mono);font-size:10px}
+.chip-row.poc{background:rgba(230,180,40,.12)}
+.chip-row.on{outline:1px solid #4a6a9a}
+.chip-bar{height:8px;background:#1a2030;display:flex;overflow:hidden}
+.chip-bar .lg{background:#e93030;height:100%}
+.chip-bar .sh{background:#00be5a;height:100%}
+.chip-hint{padding:8px;color:var(--muted);font-family:var(--mono);font-size:10px}
+#chip-stats{padding:0 10px 4px;color:var(--muted);font-family:var(--mono);font-size:10px;line-height:1.45}
+
+@media (max-width:1100px){#layout{grid-template-columns:220px minmax(0,1fr)} #side{display:none}}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <a class="logo" href="/">QUANT_SEV</a>
+  <a class="nav-a on" href="/">行情</a>
+  <a class="nav-a" href="/option-screen">期权筛</a>
+  <a class="nav-a" href="/analyze">分析</a>
+  <a class="nav-a" href="/equity">收益</a>
+  <a class="nav-a" href="/backtest">回测</a>
+  <span id="status">加载中…</span>
+</div>
+<div id="layout">
+  <aside id="watch">
+    <div class="w-head">
+      <input id="filter" placeholder="搜索主力合约" autocomplete="off">
+      <div class="w-count" id="w-count">主力 —</div>
+    </div>
+    <div class="w-cols"><span>合约</span><span>简图</span><span style="text-align:right">最新</span><span style="text-align:right">涨跌%</span></div>
+    <div id="wlist"></div>
+  </aside>
+  <main id="center">
+    <div id="toolbar">
+      <button class="btn on" data-period="intraday">分时</button>
+      <button class="btn" data-period="m1">1分钟</button>
+      <button class="btn" data-period="m5">5分钟</button>
+      <button class="btn" data-period="d1">日线</button>
+      <div id="sym-title">—</div>
+      <div class="nav-group">
+        <button class="btn" id="btn-left" title="左移">←</button>
+        <button class="btn" id="btn-right" title="右移">→</button>
+        <button class="btn" id="btn-zi" title="放大">＋</button>
+        <button class="btn" id="btn-zo" title="缩小">－</button>
+        <button class="btn" id="btn-home" title="最新">Home</button>
+      </div>
+    </div>
+    <div id="hud">
+      <span>开<b id="h-o">—</b></span>
+      <span>高<b id="h-h">—</b></span>
+      <span>低<b id="h-l">—</b></span>
+      <span>收<b id="h-price">—</b></span>
+      <span>均<b id="h-avg">—</b></span>
+      <span>量<b id="h-vol">—</b></span>
+      <span>涨跌<b id="h-chg">—</b></span>
+      <span>时间<b id="h-time">—</b></span>
+      <span id="h-nav" style="margin-left:auto"></span>
+    </div>
+    <div id="chart-wrap">
+      <canvas id="main-canvas"></canvas>
+      <div id="chart-hint">选择左侧合约</div>
+    </div>
+  </main>
+  <aside id="side">
+    <div id="side-top">
+    <div class="sec">
+      <div class="sec-t">盘口</div>
+      <div id="q-last" class="flat">—.--</div>
+      <div id="q-chg" class="flat">—</div>
+      <div class="grid2">
+        <div class="cell"><div class="lbl">今开</div><div class="val" id="q-o">—</div></div>
+        <div class="cell"><div class="lbl">昨收</div><div class="val" id="q-pc">—</div></div>
+        <div class="cell"><div class="lbl">最高</div><div class="val" id="q-h">—</div></div>
+        <div class="cell"><div class="lbl">最低</div><div class="val" id="q-l">—</div></div>
+        <div class="cell"><div class="lbl">总量</div><div class="val" id="q-v">—</div></div>
+        <div class="cell"><div class="lbl">周期</div><div class="val" id="q-iv">—</div></div>
+      </div>
+    </div>
+    <div class="sec"><div class="sec-t">合约</div><div class="meta" id="q-meta">—</div></div>
+    <div class="sec"><div class="sec-t">五档 / 价位</div><div id="depth"></div></div>
+    </div>
+    <div class="sec" id="chip-sec">
+      <div class="sec-t" id="chip-title">筹码分布</div>
+      <div class="chip-hint" id="chip-stats"></div>
+      <div id="chip"><div class="chip-hint">C++ 计算后显示</div></div>
+    </div>
+  </aside>
+</div>
+<script>
+/** ChartWindow.cpp 风格 Canvas 行情图（无 CDN） */
+const $ = (id) => document.getElementById(id);
+const C = {
+  bg:'#0c0e12', panel:'#161a22', border:'#323a46', grid:'#28303c',
+  text:'#dce1e6', muted:'#828c9b', up:'#e93030', dn:'#00c8d2', dn2:'#00be5a',
+  avg:'#e6b428', line:'#f0f0f5', dash:'#b43c3c',
+  ma5:'#f0f0f5', ma10:'#e6b428', ma20:'#dc64c8', ma60:'#50c878', oi:'#d2d2dc',
+};
+
+let watchlist=[], current=null, period='intraday';
+function isCandle(){ return period==='m1'||period==='m5'||period==='d1'; }
+function periodLabel(){ return ({intraday:'分时',m1:'1分钟',m5:'5分钟',d1:'日线'})[period]||period; }
+let bars=[], preClose=0, avgPrice=[], obv=[], ma5=[], ma10=[], ma20=[], ma60=[];
+let viewCount=160, viewRight=0;
+let hoverIdx=-1, hoverSlot=-1, drag=null, chartLayout=null, chipData=null, chipKey='', loadSeq=0;
+let sessionSlots=[], barSlotIndex=[], slotToBar=[];
+const canvas=$('main-canvas'), ctx=canvas.getContext('2d');
+
+function clsChg(v){ return v>0?'up':(v<0?'dn':'flat'); }
+function fmt(n,d=2){ if(n==null||Number.isNaN(+n)) return '—'; return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function fmtPct(v){ if(v==null||Number.isNaN(+v)) return '—'; return (v>0?'+':'')+Number(v).toFixed(2)+'%'; }
+
+function sma(data, period){
+  const out=new Array(data.length).fill(0); let s=0;
+  for(let i=0;i<data.length;i++){
+    s+=data[i].close;
+    if(i>=period) s-=data[i-period].close;
+    if(i>=period-1) out[i]=s/period;
+  }
+  return out;
+}
+function calcObv(data){
+  const out=[]; let o=0;
+  for(let i=0;i<data.length;i++){
+    if(i>0){
+      if(data[i].close>data[i-1].close) o+=data[i].volume||0;
+      else if(data[i].close<data[i-1].close) o-=data[i].volume||0;
+    }
+    out.push(o);
+  }
+  return out;
+}
+function calcAvg(data){
+  const out=[]; let sum=0,vol=0;
+  for(let i=0;i<data.length;i++){
+    const v=Math.max(1, data[i].volume||1);
+    sum+=data[i].close*v; vol+=v;
+    out.push(sum/vol);
+  }
+  return out;
+}
+function aggregate(src, minutes){
+  if(!src.length) return [];
+  const step=minutes*60; const out=[]; let b=null;
+  for(const x of src){
+    const t0=Math.floor(x.time/step)*step;
+    if(!b||b.time!==t0){
+      if(b) out.push(b);
+      b={time:t0, open:x.open, high:x.high, low:x.low, close:x.close, volume:x.volume||0, datetime_str:x.datetime_str||''};
+    } else {
+      b.high=Math.max(b.high,x.high); b.low=Math.min(b.low,x.low);
+      b.close=x.close; b.volume+=x.volume||0; b.datetime_str=x.datetime_str||b.datetime_str;
+    }
+  }
+  if(b) out.push(b);
+  return out;
+}
+function hmsSec(s){
+  const p=String(s||'00:00:00').split(':');
+  return (+p[0]||0)*3600+(+p[1]||0)*60+(+(p[2]||0));
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function ymdAdd(y,m,d,delta){
+  const dt=new Date(y, m-1, d+delta);
+  return [dt.getFullYear(), dt.getMonth()+1, dt.getDate()];
+}
+function isWeekend(y,m,d){
+  const w=new Date(y, m-1, d).getDay();
+  return w===0||w===6;
+}
+function fmtDT(y,m,d,sec){
+  const hh=Math.floor(sec/3600), mm=Math.floor((sec%3600)/60), ss=sec%60;
+  return `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+}
+function sessionOpenKey(lastStr, item){
+  const m=(lastStr||'').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(!m) return '';
+  const y=+m[1], mo=+m[2], d=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0);
+  const sod=h*3600+mi*60+se;
+  const segs=(item&&item.sessions)||[];
+  let nightB=-1, nightE=-1, dayB=-1;
+  for(const s of segs){
+    const b=hmsSec(s.time_begin), e=hmsSec(s.time_end);
+    if(b>=20*3600){ if(nightB<0){ nightB=b; nightE=e; } }
+    else if(dayB<0) dayB=b;
+  }
+  if(nightB<0 && item && item.session_night_open){
+    nightB=hmsSec(item.session_night_open);
+    nightE=hmsSec(item.session_night_close||'23:00:00');
+  }
+  if(dayB<0 && item && item.session_day_open) dayB=hmsSec(item.session_day_open);
+  if(nightB>=0){
+    const overnight=nightE>=0 && nightE<nightB;
+    const inNight=sod>=nightB || (overnight && sod<nightE);
+    let yy=y, mm=mo, dd=d;
+    if(inNight){
+      if(sod<nightB) [yy,mm,dd]=ymdAdd(y,mo,d,-1);
+    } else {
+      [yy,mm,dd]=ymdAdd(y,mo,d,-1);
+    }
+    if(!overnight){
+      while(isWeekend(yy,mm,dd)) [yy,mm,dd]=ymdAdd(yy,mm,dd,-1);
+    }
+    return fmtDT(yy,mm,dd,nightB);
+  }
+  if(dayB<0) dayB=9*3600;
+  return fmtDT(y,mo,d,dayB);
+}
+function sessionLabel(item){
+  if(!item) return '';
+  const close=(item.session_day_close||'15:00:00').slice(0,5);
+  if(item.session_night_open){
+    return `夜盘 ${(item.session_night_open||'21:00:00').slice(0,5)}→次日${close}`;
+  }
+  const open=(item.session_day_open||'09:00:00').slice(0,5);
+  return `日盘 ${open}→${close}`;
+}
+function lastSession(data, item){
+  if(!data.length) return [];
+  const last = data[data.length-1].datetime_str || '';
+  const startKey = sessionOpenKey(last, item);
+  if(!startKey) return data.slice(-240);
+  const day = data.filter(b=>(b.datetime_str||'') >= startKey);
+  // 当前交易时段（夜盘 21:00 起）；未走到的日盘分钟留空，不回退到上一完整时段。
+  return day.length>=1 ? day : data.slice(-240);
+}
+function nowMinuteStr(){
+  const n=new Date();
+  return `${n.getFullYear()}-${pad2(n.getMonth()+1)}-${pad2(n.getDate())} ${pad2(n.getHours())}:${pad2(n.getMinutes())}:00`;
+}
+function parseWallMs(s){
+  if(!s || s.length<16) return NaN;
+  return Date.parse(s.slice(0,19).replace(' ','T')+'+08:00');
+}
+function applyLiveQuote(dataBars, item){
+  const px=Number(item&&item.quote&&item.quote.last);
+  if(!(px>0) || !dataBars.length) return dataBars;
+  const ds=nowMinuteStr();
+  const last=dataBars[dataBars.length-1];
+  const lastKey=(last.datetime_str||'').slice(0,16);
+  if(lastKey===ds.slice(0,16)){
+    last.close=px;
+    last.high=Math.max(Number(last.high)||px, px);
+    last.low=Math.min(Number(last.low)||px, px);
+    return dataBars;
+  }
+  if((last.datetime_str||'') < ds){
+    const lastMs=parseWallMs(last.datetime_str||'');
+    const nowMs=parseWallMs(ds);
+    const gap=nowMs-lastMs;
+    const cont=Number.isFinite(gap) && gap>0 && gap<=120000;
+    dataBars.push({
+      time: Number.isFinite(nowMs) ? Math.floor(nowMs/1000) : (Number(last.time)||0)+60,
+      open: cont ? last.close : px,
+      high: cont ? Math.max(last.close, px) : px,
+      low: cont ? Math.min(last.close, px) : px,
+      close:px, volume:0, datetime_str:ds,
+    });
+  }
+  return dataBars;
+}
+function fmtHM(sod){
+  const h=Math.floor(((sod%86400)+86400)%86400/3600);
+  const m=Math.floor((((sod%86400)+86400)%86400%3600)/60);
+  return pad2(h)+':'+pad2(m);
+}
+function sodOfBar(bar){
+  const d=bar&&bar.datetime_str||'';
+  if(d.length<16) return -1;
+  return hmsSec(d.slice(11,19));
+}
+function buildSessionSlots(item){
+  const segs=(item&&item.sessions)||[];
+  const out=[];
+  const add=(b,e)=>{
+    if(!(b>=0) || !(e>=0)) return;
+    if(e<b){
+      for(let s=b;s<86400;s+=60) out.push({sod:s, hm:fmtHM(s)});
+      for(let s=0;s<e;s+=60) out.push({sod:s, hm:fmtHM(s)});
+    } else {
+      for(let s=b;s<e;s+=60) out.push({sod:s, hm:fmtHM(s)});
+    }
+  };
+  if(!segs.length){
+    const night=item&&item.session_night_open?hmsSec(item.session_night_open):-1;
+    const nend=item&&item.session_night_close?hmsSec(item.session_night_close):-1;
+    const day=item&&item.session_day_open?hmsSec(item.session_day_open):9*3600;
+    const close=item&&item.session_day_close?hmsSec(item.session_day_close):15*3600;
+    if(night>=0) add(night, nend>=0?nend:23*3600);
+    add(day, 11*3600+30*60);
+    if(close>13*3600) add(13*3600+30*60, close);
+    else add(13*3600, close);
+    return out;
+  }
+  const night=[], day=[];
+  segs.forEach(s=>{
+    const b=hmsSec(s.time_begin), e=hmsSec(s.time_end);
+    if(b>=20*3600) night.push([b,e]); else day.push([b,e]);
+  });
+  night.forEach(([b,e])=>add(b,e));
+  day.sort((a,c)=>a[0]-c[0]);
+  day.forEach(([b,e])=>add(b,e));
+  return out;
+}
+function bindSessionLayout(item, dataBars){
+  sessionSlots=buildSessionSlots(item);
+  slotToBar=new Array(sessionSlots.length).fill(-1);
+  barSlotIndex=new Array(dataBars.length).fill(-1);
+  const map=new Map();
+  sessionSlots.forEach((s,i)=>map.set(s.sod,i));
+  dataBars.forEach((b,bi)=>{
+    const sod=Math.floor(sodOfBar(b)/60)*60;
+    const si=map.get(sod);
+    if(si==null) return;
+    barSlotIndex[bi]=si;
+    slotToBar[si]=bi;
+  });
+}
+function getViewRange(){
+  const n=bars.length;
+  const end=Math.max(0, n-viewRight);
+  const begin=Math.max(0, end-viewCount);
+  return {begin, end:Math.max(begin+2, end)};
+}
+function hmOf(bar){
+  const d=bar&&bar.datetime_str||'';
+  return d.length>=16?d.slice(11,16):'';
+}
+function hourOf(bar){
+  const hm=hmOf(bar);
+  return hm?hm.slice(0,2):'';
+}
+function fmtAxis(v, span){
+  const a=Math.abs(span);
+  if(a>=100) return v.toFixed(0);
+  if(a>=10) return v.toFixed(1);
+  if(a>=1) return v.toFixed(2);
+  return v.toFixed(3);
+}
+function visiblePriceRange(begin, end){
+  const closes=[];
+  for(let i=begin;i<end;i++){
+    const b=bars[i];
+    if(b && Number.isFinite(b.close) && b.close>0) closes.push(b.close);
+  }
+  closes.sort((a,c)=>a-c);
+  const med=closes.length? closes[Math.floor(closes.length/2)] : 0;
+  const floor=med>0? med*0.5 : 0;
+  let pmn=Infinity, pmx=-Infinity;
+  for(let i=begin;i<end;i++){
+    const b=bars[i];
+    if(!b) continue;
+    const lo=floor && b.low>0 && b.low<floor ? Math.min(b.open,b.close) : b.low;
+    const hi=floor && b.high>med*2 ? Math.max(b.open,b.close) : b.high;
+    if(isCandle()){
+      pmn=Math.min(pmn, lo, b.open, b.close);
+      pmx=Math.max(pmx, hi, b.open, b.close);
+    } else {
+      pmn=Math.min(pmn, b.close, lo);
+      pmx=Math.max(pmx, b.close, hi);
+      if(avgPrice[i]){ pmn=Math.min(pmn, avgPrice[i]); pmx=Math.max(pmx, avgPrice[i]); }
+    }
+  }
+  if(!Number.isFinite(pmn)||!Number.isFinite(pmx)) return {pmn:0,pmx:1};
+  if(pmx<=pmn){ const e=Math.max(Math.abs(pmn)*0.001, 1e-6); pmn-=e; pmx+=e; }
+  const pad=Math.max((pmx-pmn)*0.04, (pmx-pmn)*0.01);
+  return {pmn:pmn-pad, pmx:pmx+pad};
+}
+function drawTimeAxis(area, begin, end){
+  const n=end-begin;
+  if(n<2) return;
+  ctx.fillStyle=C.muted;
+  ctx.font='10px Consolas,monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='top';
+  const y=area.b+4;
+  const minGap=48;
+  let lastX=-1e9;
+  const marks=[];
+  if(period==='intraday'){
+    const special={ '09:00':1,'09:30':1,'10:00':1,'10:30':1,'11:00':1,'11:30':1,
+      '13:00':1,'13:30':1,'14:00':1,'14:30':1,'15:00':1,'15:15':1,
+      '21:00':1,'22:00':1,'23:00':1,'23:30':1,'01:00':1,'02:30':1 };
+    const seen={};
+    for(let i=begin;i<end;i++){
+      const hm=hmOf(bars[i]);
+      if(!hm||seen[hm]) continue;
+      const mm=hm.slice(3,5);
+      if(mm!=='00' && !special[hm]) continue;
+      seen[hm]=1;
+      marks.push({i, text:hm});
+    }
+  } else if(period==='d1'){
+    const seen={};
+    for(let i=begin;i<end;i++){
+      const d=(bars[i].datetime_str||'').slice(0,10);
+      if(!d||seen[d]) continue;
+      seen[d]=1;
+      marks.push({i, text: d.slice(5)});
+    }
+  } else {
+    const seen={};
+    for(let i=begin;i<end;i++){
+      const hh=hourOf(bars[i]);
+      const hm=hmOf(bars[i]);
+      if(!hh||seen[hh]) continue;
+      if(hm.slice(3,5)!=='00') continue;
+      seen[hh]=1;
+      marks.push({i, text: hh});
+    }
+    if(!marks.length){
+      const seen2={};
+      for(let i=begin;i<end;i++){
+        const hh=hourOf(bars[i]);
+        if(!hh||seen2[hh]) continue;
+        seen2[hh]=1;
+        marks.push({i, text: hh});
+      }
+    }
+  }
+  if(!marks.length){
+    [begin, begin+Math.floor(n/2), end-1].forEach(idx=>{
+      if(idx<begin||idx>=end) return;
+      const hm=hmOf(bars[idx]);
+      if(hm) marks.push({i:idx, text: period==='m1'?hm.slice(0,2):hm});
+    });
+  }
+  marks.forEach(m=>{
+    const x=mapX(area, m.i-begin, n);
+    if(x-lastX<minGap && lastX>-1e8) return;
+    lastX=x;
+    ctx.fillText(m.text, x, y);
+  });
+  ctx.textAlign='left';
+  ctx.textBaseline='alphabetic';
+}
+function clampView(){
+  viewCount=Math.max(20, Math.min(viewCount, Math.max(20, bars.length)));
+  viewRight=Math.max(0, Math.min(viewRight, Math.max(0, bars.length-viewCount)));
+}
+
+function resizeCanvas(){
+  const wrap=$('chart-wrap');
+  const dpr=window.devicePixelRatio||1;
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  canvas.width=Math.max(1, Math.floor(w*dpr));
+  canvas.height=Math.max(1, Math.floor(h*dpr));
+  canvas.style.width=w+'px'; canvas.style.height=h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+function mapX(area, i, n){
+  if(n<=1) return (area.l+area.r)/2;
+  return area.l+(area.r-area.l)*i/(n-1);
+}
+function mapY(area, v, mn, mx){
+  if(mx<=mn) return (area.t+area.b)/2;
+  return area.b-(area.b-area.t)*(v-mn)/(mx-mn);
+}
+function fillRect(r,c){ ctx.fillStyle=c; ctx.fillRect(r.l,r.t,r.r-r.l,r.b-r.t); }
+function strokeRect(r,c){ ctx.strokeStyle=c; ctx.strokeRect(r.l+0.5,r.t+0.5,r.r-r.l-1,r.b-r.t-1); }
+function textAt(x,y,s,c,size=11){ ctx.fillStyle=c; ctx.font=`${size}px Consolas,monospace`; ctx.textAlign='left'; ctx.fillText(s,x,y); }
+function dashH(x1,x2,y,c){ ctx.strokeStyle=c; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke(); ctx.setLineDash([]); }
+
+function drawCandle(x, bodyW, area, b, mn, mx){
+  const up=b.close>=b.open; const col=up?C.up:C.dn;
+  const yH=mapY(area,b.high,mn,mx), yL=mapY(area,b.low,mn,mx);
+  const yO=mapY(area,b.open,mn,mx), yC=mapY(area,b.close,mn,mx);
+  const cx=x+bodyW/2;
+  ctx.strokeStyle=col; ctx.beginPath(); ctx.moveTo(cx,yH); ctx.lineTo(cx,yL); ctx.stroke();
+  const top=Math.min(yO,yC), bot=Math.max(yO,yC);
+  ctx.fillStyle=col; ctx.fillRect(x+1, top, Math.max(2,bodyW-1), Math.max(1,bot-top));
+}
+function drawPoly(area, ys, begin, end, mn, mx, color, width){
+  if(end-begin<2||mx<=mn) return;
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.beginPath();
+  const n=end-begin; let started=false;
+  for(let i=0;i<n;i++){
+    const v=ys[begin+i]; if(v==null) continue;
+    const x=mapX(area,i,n), y=mapY(area,v,mn,mx);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.lineWidth=1;
+}
+function drawPolyAll(area, ys, mn, mx, color, width){
+  drawPoly(area, ys, 0, ys.length, mn, mx, color, width);
+}
+
+function sessionHeldValues(ys){
+  const n=sessionSlots.length;
+  const out=new Array(n).fill(null);
+  for(let bi=0; bi<bars.length; bi++){
+    const si=barSlotIndex[bi];
+    if(si==null || si<0) continue;
+    const v=ys[bi];
+    if(v==null || !Number.isFinite(v)) continue;
+    out[si]=v;
+  }
+  // Hold at most 2 empty minutes (thin tape). Longer holes stay null so the line breaks.
+  const maxHold=2;
+  for(let i=0;i<n;){
+    if(out[i]!=null){ i++; continue; }
+    let j=i;
+    while(j<n && out[j]==null) j++;
+    const prev=i>0?out[i-1]:null;
+    if(prev!=null && (j-i)>0 && (j-i)<=maxHold && j<n && out[j]!=null){
+      for(let k=i;k<j;k++) out[k]=prev;
+    }
+    i=j;
+  }
+  return out;
+}
+function slotDateTime(si){
+  const hm=sessionSlots[si]&&sessionSlots[si].hm;
+  const src=bars.length? (bars[bars.length-1].datetime_str||'') : '';
+  if(src.length>=10 && hm) return src.slice(0,10)+' '+hm+':00';
+  return hm||'';
+}
+function hoverDisplayBar(){
+  if(hoverSlot>=0 && sessionSlots.length && slotToBar[hoverSlot]<0){
+    return {gap:true, datetime_str:slotDateTime(hoverSlot), open:null, high:null, low:null, close:null, volume:0};
+  }
+  const src=bars[hoverIdx];
+  if(!src) return null;
+  return src;
+}
+function drawSessionPoly(area, ys, pmn, pmx, color, width){
+  if(!sessionSlots.length || pmx<=pmn) return;
+  const held=sessionHeldValues(ys);
+  const n=held.length;
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.beginPath();
+  let started=false;
+  for(let i=0;i<n;i++){
+    const v=held[i];
+    if(v==null){ started=false; continue; }
+    const x=mapX(area, i, n), y=mapY(area, v, pmn, pmx);
+    if(!started){ ctx.moveTo(x,y); started=true; }
+    else ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.lineWidth=1;
+}
+function drawSessionTimeAxis(area){
+  if(!sessionSlots.length) return;
+  ctx.fillStyle=C.muted;
+  ctx.font='10px Consolas,monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='top';
+  const y=area.b+4;
+  const n=sessionSlots.length;
+  const special={ '09:00':1,'09:30':1,'10:15':1,'10:30':1,'11:30':1,
+    '13:00':1,'13:30':1,'15:00':1,'15:15':1,
+    '21:00':1,'23:00':1,'00:00':1,'01:00':1,'02:30':1 };
+  let lastX=-1e9;
+  sessionSlots.forEach((s,i)=>{
+    if(!special[s.hm] && s.hm.slice(3)!=='00') return;
+    if(!special[s.hm] && s.hm.slice(3)==='00' && !['21:00','22:00','23:00','09:00','10:00','11:00','13:00','14:00','15:00'].includes(s.hm)) return;
+    const x=mapX(area, i, n);
+    if(x-lastX<42 && lastX>-1e8) return;
+    lastX=x;
+    ctx.fillText(s.hm, x, y);
+  });
+  if(bars.length){
+    const lastSi=barSlotIndex[bars.length-1];
+    if(lastSi>=0){
+      const hm=hmOf(bars[bars.length-1]);
+      const x=mapX(area, lastSi, n);
+      ctx.fillStyle=C.avg;
+      ctx.fillText(hm||'', x, y);
+    }
+  }
+  ctx.textAlign='left';
+  ctx.textBaseline='alphabetic';
+}
+
+function draw(){
+  const W=canvas.clientWidth, H=canvas.clientHeight;
+  fillRect({l:0,t:0,r:W,b:H}, C.bg);
+  strokeRect({l:0,t:0,r:W,b:H}, C.border);
+  const hint=$('chart-hint');
+  if(bars.length<2){
+    hint.style.display='flex';
+    return;
+  }
+  hint.style.display='none';
+
+  const padL=10, padR=58, padT=28, xGap=18;
+  const usable=H-padT-8-xGap;
+  const priceH=Math.floor(usable*0.50);
+  const volH=Math.floor(usable*0.22);
+  const obvH=usable-priceH-volH-16;
+  const price={l:padL,t:padT,r:W-padR,b:padT+priceH};
+  const vol={l:price.l,t:price.b+xGap,r:price.r,b:price.b+xGap+volH};
+  const obva={l:price.l,t:vol.b+6,r:price.r,b:vol.b+6+obvH};
+  fillRect(price,C.panel); fillRect(vol,C.panel); fillRect(obva,C.panel);
+  strokeRect(price,C.border); strokeRect(vol,C.border); strokeRect(obva,C.border);
+
+  const kline=isCandle();
+  const sessX=period==='intraday' && sessionSlots.length>=2;
+  const {begin,end}=getViewRange();
+  if(end-begin<2){ textAt(price.l+8,price.t+16,'无足够K线',C.muted); return; }
+
+  const {pmn,pmx}=visiblePriceRange(begin,end);
+  const nvis=end-begin;
+  const nX=sessX?sessionSlots.length:nvis;
+
+  for(let i=0;i<=4;i++){
+    const y=price.t+(price.b-price.t)*i/4;
+    dashH(price.l,price.r,y,C.grid);
+    const pv=pmx-(pmx-pmn)*i/4;
+    textAt(price.r+4, y+4, fmtAxis(pv, pmx-pmn), C.muted, 10);
+    if(period==='intraday'&&preClose>0){
+      textAt(price.l+2, y+4, ((pv-preClose)/preClose*100).toFixed(2)+'%', C.muted, 10);
+    }
+  }
+  if(period==='intraday'&&preClose>0 && preClose>=pmn && preClose<=pmx){
+    dashH(price.l, price.r, mapY(price,preClose,pmn,pmx), C.dash);
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(price.l+1, price.t+1, price.r-price.l-2, price.b-price.t-2);
+  ctx.clip();
+  if(kline){
+    const bodyW=Math.max(3, Math.floor((price.r-price.l)/Math.max(1,nvis))-1);
+    for(let i=0;i<nvis;i++){
+      const x=mapX(price,i,nvis)-bodyW/2;
+      drawCandle(x, bodyW, price, bars[begin+i], pmn, pmx);
+    }
+    drawPoly(price, ma5, begin, end, pmn, pmx, C.ma5, 1);
+    drawPoly(price, ma10, begin, end, pmn, pmx, C.ma10, 1);
+    drawPoly(price, ma20, begin, end, pmn, pmx, C.ma20, 1);
+    drawPoly(price, ma60, begin, end, pmn, pmx, C.ma60, 1);
+  } else if(sessX){
+    drawSessionPoly(price, avgPrice, pmn, pmx, C.avg, 1);
+    drawSessionPoly(price, bars.map(b=>b.close), pmn, pmx, C.line, 2);
+  } else {
+    drawPoly(price, bars.map(b=>b.close), begin, end, pmn, pmx, C.line, 2);
+  }
+  ctx.restore();
+  if(kline){
+    textAt(price.l+8, price.t+14, 'MA5', C.ma5, 10);
+    textAt(price.l+50, price.t+14, 'MA10', C.ma10, 10);
+    textAt(price.l+100, price.t+14, 'MA20', C.ma20, 10);
+    textAt(price.l+155, price.t+14, 'MA60', C.ma60, 10);
+    $('h-nav').textContent=`可见${viewCount}根  左偏${viewRight}  [滚轮缩放/←→平移/Home]`;
+  } else {
+    textAt(price.l+8, price.t+14, '价格', C.muted, 10);
+    textAt(price.l+50, price.t+14, '均价', C.avg, 10);
+    $('h-nav').textContent=sessX?'分时按交易时段铺轴；缺分钟断线，未走到留空':'';
+  }
+  if(sessX) drawSessionTimeAxis(price);
+  else drawTimeAxis(price, begin, end);
+  chartLayout={price, vol, obva, begin, end, pmn, pmx, nvis:nX, padL, padR, padT, sessX};
+
+  let vmax=1;
+  for(let i=begin;i<end;i++) vmax=Math.max(vmax, bars[i].volume||0);
+  const volPlot={l:vol.l, t:vol.t+16, r:vol.r, b:vol.b-2};
+  if(sessX){
+    const bodyW=Math.max(1, Math.floor((volPlot.r-volPlot.l)/Math.max(1,nX))-1);
+    for(let bi=0; bi<bars.length; bi++){
+      const si=barSlotIndex[bi]; if(si<0) continue;
+      const b=bars[bi];
+      const x=mapX(volPlot, si, nX)-bodyW/2;
+      const h=Math.floor((volPlot.b-volPlot.t)*(b.volume||0)/vmax);
+      ctx.fillStyle=b.close>=b.open?C.up:C.dn;
+      ctx.fillRect(x, volPlot.b-h, bodyW, Math.max(1,h));
+    }
+  } else {
+    const bodyW=Math.max(2, Math.floor((volPlot.r-volPlot.l)/Math.max(1,nvis))-1);
+    for(let i=0;i<nvis;i++){
+      const b=bars[begin+i];
+      const x=mapX(volPlot,i,nvis)-bodyW/2;
+      const h=Math.floor((volPlot.b-volPlot.t)*(b.volume||0)/vmax);
+      ctx.fillStyle=b.close>=b.open?C.up:C.dn;
+      ctx.fillRect(x, volPlot.b-h, bodyW, h);
+    }
+  }
+  textAt(vol.l+8, vol.t+12, 'VOL', C.muted, 10);
+
+  let omin=obv[begin]||0, omax=omin;
+  for(let i=begin;i<end;i++){ omin=Math.min(omin,obv[i]||0); omax=Math.max(omax,obv[i]||0); }
+  if(omax-omin<1) omax=omin+1;
+  const maObv=[]; let s=0;
+  for(let i=0;i<obv.length;i++){
+    s+=obv[i]; if(i>=10) s-=obv[i-10];
+    maObv.push(i>=9?s/10:null);
+  }
+  if(sessX){
+    drawSessionPoly(obva, obv, omin, omax, C.line, 1);
+    drawSessionPoly(obva, maObv, omin, omax, C.avg, 1);
+  } else {
+    drawPoly(obva, obv, begin, end, omin, omax, C.line, 1);
+    drawPoly(obva, maObv, begin, end, omin, omax, C.avg, 1);
+  }
+  textAt(obva.l+8, obva.t+12, 'OBV', C.muted, 10);
+
+  const hoverX=()=>{
+    if(sessX && hoverSlot>=0){
+      return mapX(price, hoverSlot, nX);
+    }
+    if(hoverIdx<0||!bars[hoverIdx]) return null;
+    return mapX(price, hoverIdx-begin, nvis);
+  };
+  const hx=hoverX();
+  const hb=hoverDisplayBar();
+  if(hx!=null && hb && hb.gap){
+    ctx.strokeStyle=C.dash; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(hx, price.t); ctx.lineTo(hx, obva.b); ctx.stroke();
+    ctx.setLineDash([]);
+    drawTip(price, hb, hoverIdx, hx, (price.t+price.b)/2);
+  } else if(hx!=null && hoverIdx>=0 && bars[hoverIdx]){
+    const b=hb||bars[hoverIdx];
+    const y=mapY(price, b.close, pmn, pmx);
+    ctx.strokeStyle=C.dash; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(hx, price.t); ctx.lineTo(hx, obva.b); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(price.l, y); ctx.lineTo(price.r, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(hx,y,3,0,Math.PI*2); ctx.fill();
+    drawTip(price, b, hoverIdx, hx, y);
+  }
+  maybePaintChip(begin, end);
+}
+
+function drawTip(area, b, idx, x, y){
+  if(b&&b.gap){
+    const lines=[b.datetime_str||'', '该分钟无行情（未落盘）'];
+    ctx.font='11px Consolas,monospace';
+    const tw=Math.max(...lines.map(s=>ctx.measureText(s).width))+16;
+    const th=lines.length*16+10;
+    let l=x+12, t=y-th-8;
+    if(l+tw>area.r) l=x-tw-12;
+    if(t<area.t) t=y+12;
+    if(t+th>area.b) t=area.b-th;
+    fillRect({l,t,r:l+tw,b:t+th}, 'rgba(12,16,24,.92)');
+    strokeRect({l,t,r:l+tw,b:t+th}, C.border);
+    lines.forEach((s,i)=>textAt(l+8, t+16+i*16, s, i===0?C.avg:C.muted, 11));
+    return;
+  }
+  const pc=preClose||b.open;
+  const chg=b.close-pc;
+  const pct=pc?(chg/pc*100):0;
+  const lines=[
+    b.datetime_str||'',
+    `开 ${fmt(b.open)}  高 ${fmt(b.high)}`,
+    `低 ${fmt(b.low)}  收 ${fmt(b.close)}`,
+    `量 ${Math.round(b.volume||0).toLocaleString()}  ${chg>=0?'+':''}${fmt(chg)} (${fmtPct(pct)})`,
+  ];
+  ctx.font='11px Consolas,monospace';
+  const tw=Math.max(...lines.map(s=>ctx.measureText(s).width))+16;
+  const th=lines.length*16+10;
+  let l=x+12, t=y-th-8;
+  if(l+tw>area.r) l=x-tw-12;
+  if(t<area.t) t=y+12;
+  if(t+th>area.b) t=area.b-th;
+  fillRect({l,t,r:l+tw,b:t+th}, 'rgba(12,16,24,.92)');
+  strokeRect({l,t,r:l+tw,b:t+th}, C.border);
+  lines.forEach((s,i)=>textAt(l+8, t+16+i*16, s, i===0?C.avg:C.text, 11));
+}
+
+function prepareSeries(data){
+  bars=data;
+  hoverIdx=-1;
+  hoverSlot=-1;
+  chipKey='';
+  if(period==='intraday' && current) bindSessionLayout(current, bars);
+  else { sessionSlots=[]; barSlotIndex=[]; slotToBar=[]; }
+  avgPrice=calcAvg(bars);
+  obv=calcObv(bars);
+  ma5=sma(bars,5); ma10=sma(bars,10); ma20=sma(bars,20); ma60=sma(bars,60);
+  clampView();
+  if(bars.length){
+    const last=bars[bars.length-1];
+    updateHud(last);
+  }
+  draw();
+}
+
+function updateHud(bar, idx){
+  if(!bar) return;
+  idx = (idx==null||idx<0) ? bars.length-1 : idx;
+  const pc=preClose||bar.open;
+  const chg=bar.close-pc;
+  $('h-o').textContent=fmt(bar.open);
+  $('h-h').textContent=fmt(bar.high);
+  $('h-l').textContent=fmt(bar.low);
+  $('h-price').textContent=fmt(bar.close);
+  $('h-avg').textContent=fmt(avgPrice[idx]||bar.close);
+  $('h-chg').textContent=(chg>0?'+':'')+fmt(chg)+' ('+fmtPct(pc?chg/pc*100:0)+')';
+  $('h-chg').className=clsChg(chg);
+  $('h-vol').textContent=Math.round(bar.volume||0).toLocaleString();
+  $('h-time').textContent=bar.datetime_str||'';
+}
+
+function drawSpark(canvasEl, closes, up){
+  const c=canvasEl.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=70,H=26;
+  canvasEl.width=W*dpr; canvasEl.height=H*dpr;
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.clearRect(0,0,W,H);
+  const series=(closes||[]).map(v=>{
+    if(v==null || v==='null') return null;
+    const n=Number(v);
+    return Number.isFinite(n)?n:null;
+  });
+  const pts=series.map((v,i)=>v==null?null:{i,v}).filter(p=>p);
+  if(pts.length<2){ c.strokeStyle='#333'; c.beginPath(); c.moveTo(2,H/2); c.lineTo(W-2,H/2); c.stroke(); return; }
+  const min=Math.min(...pts.map(p=>p.v)), max=Math.max(...pts.map(p=>p.v)), span=(max-min)||1;
+  const n=Math.max(2, series.length);
+  c.strokeStyle=up?C.up:C.dn2; c.lineWidth=1.2; c.beginPath();
+  let started=false;
+  series.forEach((v,i)=>{
+    if(v==null){ started=false; return; }
+    const x=2+(W-4)*i/(n-1);
+    const y=H-3-(H-6)*(v-min)/span;
+    if(!started){ c.moveTo(x,y); started=true; }
+    else c.lineTo(x,y);
+  });
+  c.stroke();
+}
+
+function chipRows(){
+  const levels=(chipData&&chipData.levels)||[];
+  const rows=[];
+  let poc=0, tot=0;
+  const keepEmpty=period==='intraday' && chipData.mode==='tick';
+  levels.forEach(lv=>{
+    const p=lv.p, buy=lv.buy||0, sell=lv.sell||0, vol=buy+sell;
+    if(vol<=0 && !keepEmpty) return;
+    tot+=vol;
+    rows.push({p, buy, sell, vol});
+    if(vol>poc) poc=vol;
+  });
+  return {rows, poc, tot};
+}
+function maybePaintChip(begin, end){
+  const k=period+':'+begin+':'+end+':'+(chipData&&chipData.levels?chipData.levels.length:0)+':'+(hoverIdx>=0?hoverIdx:-1);
+  if(k===chipKey) return;
+  chipKey=k;
+  paintChip(begin, end);
+}
+function paintChip(begin, end){
+  const box=$('chip');
+  const stats=$('chip-stats');
+  const title=$('chip-title');
+  if(title){
+    const sess = current ? sessionLabel(current) : '';
+    title.textContent = (period==='intraday' ? '筹码分布 · Tick' : '筹码分布 · K线') + (sess?' · '+sess:'');
+  }
+  if(!box) return;
+  if(!chipData || chipData.error){
+    box.innerHTML=`<div class="chip-hint">${(chipData&&chipData.error)||'等待 C++ 筹码…'}</div>`;
+    if(stats) stats.textContent='';
+    return;
+  }
+  const {rows, poc, tot}=chipRows();
+  if(!rows.length){
+    box.innerHTML='<div class="chip-hint">无筹码</div>';
+    if(stats) stats.textContent='';
+    return;
+  }
+  if(stats){
+    const avg=chipData.avg_cost;
+    const mode=chipData.mode==='kline'?'K线三角分档（阳多阴空）':'相邻Tick盘口';
+    const fb=chipData.fallback_from==='tick'?'（Tick不足已改K线）':'';
+    const so=chipData.session_open?`  开市 ${chipData.session_open}`:'';
+    const hi=chipData.tick_high, lo=chipData.tick_low;
+    const hl=(hi>0&&lo>0)?`  Tick ${fmt(hi)}~${fmt(lo)}`:'';
+    stats.textContent=`${mode}${fb}  跳=${fmt(tickSafe())}  均成本 ${fmt(avg)}  POC ${fmt(chipData.poc)}${hl}${so}`;
+  }
+  const tick=tickSafe();
+  const pad=tick>0?tick:1;
+  const hoverP=hoverIdx>=0&&bars[hoverIdx]?bars[hoverIdx].close:(chipData.last||null);
+  const lo=rows[rows.length-1].p, hi=rows[0].p;
+  const span=Math.max(1e-9, hi-lo);
+  box.innerHTML=rows.map(r=>{
+    const pct=tot?r.vol/tot*100:0;
+    const w=(!poc||r.vol<=0)?0:Math.max(2, Math.round(r.vol/poc*100));
+    const longW=r.vol>0?Math.round(r.buy/r.vol*w):0;
+    const shortW=Math.max(0, w-longW);
+    const on=hoverP!=null && Math.abs(r.p-hoverP)<=(tick||pad)*0.51 ? 'on':'';
+    const pocCls=r.vol===poc?'poc':'';
+    const volTxt=r.vol>=1?Math.round(r.vol).toLocaleString():(r.vol>0?r.vol.toFixed(2):'0');
+    return `<div class="chip-row ${pocCls} ${on}">
+      <span>${fmtAxis(r.p, span)}</span>
+      <div class="chip-bar"><span class="lg" style="width:${longW}%"></span><span class="sh" style="width:${shortW}%"></span></div>
+      <span>${volTxt}</span>
+      <span>${pct.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+}
+function tickSafe(){ return (chipData&&chipData.price_tick)||0; }
+
+function hitIndex(clientX){
+  hoverSlot=-1;
+  if(!chartLayout||bars.length<2) return -1;
+  const rect=canvas.getBoundingClientRect();
+  const x=clientX-rect.left;
+  const {price, begin, nvis, sessX}=chartLayout;
+  if(x<price.l||x>price.r||nvis<2) return -1;
+  const t=(x-price.l)/(price.r-price.l);
+  if(sessX && sessionSlots.length>=2){
+    let si=Math.round(t*(sessionSlots.length-1));
+    si=Math.max(0, Math.min(sessionSlots.length-1, si));
+    let first=-1, last=-1;
+    for(let i=0;i<slotToBar.length;i++){
+      if(slotToBar[i]>=0){ if(first<0) first=i; last=i; }
+    }
+    if(first<0) return -1;
+    if(si<first) si=first;
+    if(si>last) si=last;
+    hoverSlot=si;
+    if(slotToBar[si]>=0) return slotToBar[si];
+    return -1;
+  }
+  const i=Math.round(t*(nvis-1));
+  return Math.max(begin, Math.min(begin+nvis-1, begin+i));
+}
+function zoomAt(factor, frac){
+  if(period==='intraday') return;
+  const n=bars.length;
+  if(n<4) return;
+  const {begin,end}=getViewRange();
+  const old=Math.max(2, end-begin);
+  const anchor=begin+frac*old;
+  viewCount=Math.round(Math.max(20, Math.min(n, old*factor)));
+  const newBegin=Math.round(anchor-frac*viewCount);
+  viewRight=n-(newBegin+viewCount);
+  clampView();
+  draw();
+}
+function paintWatch(filter=''){
+  const q=filter.trim().toLowerCase();
+  const list=watchlist.filter(w=>!q||[w.symbol,w.display_name,w.dominant,w.label,w.title].join(' ').toLowerCase().includes(q));
+  const wc=$('w-count');
+  if(wc) wc.textContent=`主力 ${list.length} / ${watchlist.length}（data/live/dominant）`;
+  $('wlist').innerHTML=list.map(w=>{
+    const qq=w.quote||{}, c=clsChg(qq.change_pct||0), on=current&&current.symbol===w.symbol?'on':'';
+    const title=w.title||w.label||w.dominant||w.symbol;
+    const sub=w.dominant||w.label||w.symbol;
+    return `<div class="wrow ${on}" data-sym="${w.symbol}">
+      <div><div class="w-sym">${title}</div><div class="w-name">${sub}</div></div>
+      <div class="w-spark"><canvas data-spark="${w.symbol}"></canvas></div>
+      <div class="w-px ${c}">${fmt(qq.last)}</div>
+      <div class="w-chg ${c}">${fmtPct(qq.change_pct)}</div>
+    </div>`;
+  }).join('')||`<div style="padding:14px;color:var(--muted);font-family:var(--mono);font-size:11px">无匹配</div>`;
+  requestAnimationFrame(()=>{
+    list.forEach(w=>{
+      const el=document.querySelector(`canvas[data-spark="${w.symbol}"]`);
+      if(el) drawSpark(el,(w.quote&&w.quote.sparkline)||[],(w.quote?.change_pct||0)>=0);
+    });
+  });
+}
+
+function paintSide(item, quote){
+  const q=quote||item.quote||{}, chg=q.change??0, pct=q.change_pct??0, c=clsChg(chg);
+  preClose=q.prev_close!=null?q.prev_close:preClose;
+  $('q-last').className=c; $('q-last').textContent=fmt(q.last);
+  $('q-chg').className=c; $('q-chg').textContent=`${chg>0?'+':''}${fmt(chg)}  (${fmtPct(pct)})`;
+  $('q-o').textContent=fmt(q.open); $('q-pc').textContent=fmt(q.prev_close);
+  $('q-h').textContent=fmt(q.high); $('q-l').textContent=fmt(q.low);
+  $('q-v').textContent=q.volume!=null?Math.round(q.volume).toLocaleString():'—';
+  const labels={intraday:'分时',m1:'1分钟',m5:'5分钟',d1:'日线'};
+  $('q-iv').textContent=labels[period]||period;
+  $('q-meta').innerHTML=`品种 <b style="color:#fff">${item.display_name||item.symbol}</b><br>主力 <b style="color:var(--up)">${item.dominant||'—'}</b><br>次主力 ${item.second||'—'}<br>代码 ${item.symbol}<br>交易日 ${item.trading_day||'—'}<br>时段 ${sessionLabel(item)||'—'}`;
+  const last=Number(q.last)||0;
+  const depth=$('depth');
+  if(!last){ depth.textContent='无报价'; return; }
+  if(q.bid>0 || q.ask>0){
+    depth.innerHTML =
+      `<div class="drow"><span>卖1</span><span class="dn">${fmt(q.ask||last)}</span><span>${q.ask_qty!=null?Math.round(q.ask_qty):'—'}</span></div>`+
+      `<div class="drow" style="color:var(--avg);font-weight:600"><span></span><span>${fmt(last)}</span><span>现价</span></div>`+
+      `<div class="drow"><span>买1</span><span class="up">${fmt(q.bid||last)}</span><span>${q.bid_qty!=null?Math.round(q.bid_qty):'—'}</span></div>`+
+      `<div class="meta" style="margin-top:8px">Tick L1（极智/CTP）</div>`;
+    return;
+  }
+  const step=last>=10000?10:(last>=1000?1:(last>=100?0.2:0.01));
+  let html='';
+  for(let i=5;i>=1;i--) html+=`<div class="drow"><span>卖${i}</span><span class="dn">${fmt(last+i*step)}</span><span>—</span></div>`;
+  html+=`<div class="drow" style="color:var(--avg);font-weight:600"><span></span><span>${fmt(last)}</span><span>现价</span></div>`;
+  for(let i=1;i<=5;i++) html+=`<div class="drow"><span>买${i}</span><span class="up">${fmt(last-i*step)}</span><span>—</span></div>`;
+  depth.innerHTML=html;
+}
+
+async function loadWatchlist(){
+  $('status').textContent='加载合约…';
+  const [wl, boot]=await Promise.all([
+    fetch('/api/watchlist').then(r=>r.json()),
+    fetch('/api/bootstrap').then(r=>r.json()).catch(()=>({})),
+  ]);
+  watchlist=wl.watchlist||[];
+  const b=boot.import_done?'bootstrap✓':(boot.export_done?'待导入':'待极智导出');
+  $('status').textContent=`${wl.count||0} 主力 · ${b}${wl.trading_day?' · '+wl.trading_day:''}`;
+  paintWatch($('filter').value);
+  if(watchlist.length){
+    selectSymbol((watchlist.find(w=>w.symbol==='SHFE.rb')||watchlist.find(w=>w.symbol==='CFFEX.IC')||watchlist[0]).symbol);
+  }
+  startLivePoll();
+}
+
+let livePoll=null;
+let liveBusy=false;
+function startLivePoll(){
+  if(livePoll) return;
+  livePoll=setInterval(()=>{ refreshLive().catch(()=>{}); }, 3000);
+}
+async function refreshLive(){
+  if(liveBusy) return;
+  liveBusy=true;
+  try{
+    const wl=await fetch('/api/watchlist').then(r=>r.json());
+    if(!(wl.watchlist||[]).length) return;
+    const by={};
+    wl.watchlist.forEach(w=>{ by[w.symbol]=w; });
+    watchlist=watchlist.map(w=>Object.assign({}, w, by[w.symbol]||{}));
+    paintWatch($('filter').value);
+    if(current){
+      const item=watchlist.find(w=>w.symbol===current.symbol);
+      if(item){
+        current=item;
+        if(period==='intraday'||period==='m1') await loadBars(item,{silent:true});
+        else paintSide(item, item.quote);
+      }
+    }
+  } finally { liveBusy=false; }
+}
+
+async function loadBars(item, opt){
+  const silent=!!(opt&&opt.silent);
+  if(!silent){
+    $('chart-hint').style.display='flex';
+    $('chart-hint').textContent='加载…';
+  }
+  const labels={intraday:'分时',m1:'1分钟',m5:'5分钟',d1:'日线'};
+  $('sym-title').innerHTML=`${item.title||item.display_name||item.label||item.symbol}<span>${labels[period]} · ${item.dominant||item.symbol}</span>`;
+
+  const iv = period==='d1' ? 1440 : (period==='m5' ? 5 : 1);
+  const limit = period==='d1' ? 200 : (period==='m5' ? 5000 : 10000);
+  const res=await fetch(`/api/klines?symbol=${encodeURIComponent(item.symbol)}&interval_minutes=${iv}&limit=${limit}`);
+  const data=await res.json();
+  if(data.sessions && data.sessions.length){
+    item.sessions = data.sessions;
+    if(data.session_night_open) item.session_night_open = data.session_night_open;
+    if(data.session_night_close) item.session_night_close = data.session_night_close;
+    if(data.session_day_open) item.session_day_open = data.session_day_open;
+    if(data.session_day_close) item.session_day_close = data.session_day_close;
+  }
+  if(!res.ok||data.error||!(data.klines||[]).length){
+    if(!silent) $('chart-hint').textContent=data.error||'无 K 线（先极智导出 M1/M5/D，再 import_ep_to_store）';
+    bars=[]; draw(); return;
+  }
+  let all=(data.klines||[]).map(k=>({
+    time:k.time_unix!=null?k.time_unix:k.time,
+    open:k.open, high:k.high, low:k.low, close:k.close,
+    volume:k.volume, datetime_str:k.datetime_str||'',
+  }));
+  let dataBars;
+  if(period==='intraday'){
+    dataBars=(data.session_sliced ? all : lastSession(all, item));
+    dataBars=applyLiveQuote(dataBars, item);
+    viewRight=0; viewCount=Math.max(20,dataBars.length);
+  } else if(period==='m1'){
+    dataBars=applyLiveQuote(all, item);
+    if(!silent){ viewCount=240; viewRight=0; }
+  } else if(period==='m5'){
+    dataBars=all;
+    if(!silent){ viewCount=160; viewRight=0; }
+  } else if(period==='d1'){
+    dataBars=all;
+    if(!silent){ viewCount=Math.min(80, Math.max(30, all.length)); viewRight=0; }
+  } else {
+    dataBars=all;
+    if(!silent){ viewCount=240; viewRight=0; }
+  }
+  const firstT=dataBars[0]?.datetime_str||'';
+  preClose=item.quote?.prev_close||dataBars[0].open;
+  if(firstT){
+    for(let i=all.length-1;i>=0;i--){
+      if((all[i].datetime_str||'')<firstT){ preClose=all[i].close; break; }
+    }
+  }
+  prepareSeries(dataBars);
+  const last=dataBars[dataBars.length-1], first=dataBars[0];
+  paintSide(item,{
+    last:(item.quote&&item.quote.last)||last.close, open:first.open,
+    high:Math.max(...dataBars.map(b=>b.high)), low:Math.min(...dataBars.map(b=>b.low)),
+    volume:dataBars.reduce((s,b)=>s+(b.volume||0),0),
+    prev_close:preClose, change:((item.quote&&item.quote.last)||last.close)-preClose,
+    change_pct:preClose?(((item.quote&&item.quote.last)||last.close)-preClose)/preClose*100:0,
+    bid:item.quote&&item.quote.bid, ask:item.quote&&item.quote.ask,
+    bid_qty:item.quote&&item.quote.bid_qty, ask_qty:item.quote&&item.quote.ask_qty,
+  });
+  if(silent){ draw(); return; }
+  const seq=++loadSeq;
+  chipData=null;
+  chipKey='';
+  const mode = period==='intraday' ? 'tick' : 'kline';
+  const chipIv = period==='d1' ? 1440 : (period==='m5' ? 5 : 1);
+  const so = period==='intraday' ? '&session_only=1' : '';
+  fetch(`/api/chip?symbol=${encodeURIComponent(item.symbol)}&mode=${mode}&interval_minutes=${chipIv}${so}`)
+    .then(async r=>{
+      const t=await r.text();
+      try{ return JSON.parse(t); }
+      catch{ return {error: (t||('HTTP '+r.status)).slice(0,240)}; }
+    })
+    .then(data=>{
+      if(seq!==loadSeq) return;
+      chipData=data;
+      chipKey='';
+      draw();
+    })
+    .catch(err=>{
+      if(seq!==loadSeq) return;
+      chipData={error: String(err&&err.message||err)};
+      chipKey='';
+      draw();
+    });
+}
+
+function selectSymbol(sym){
+  const item=watchlist.find(w=>w.symbol===sym);
+  if(!item) return;
+  current=item;
+  paintWatch($('filter').value);
+  paintSide(item, item.quote);
+  loadBars(item);
+}
+
+$('filter').addEventListener('input', e=>paintWatch(e.target.value));
+$('wlist').addEventListener('click', e=>{ const row=e.target.closest('.wrow'); if(row) selectSymbol(row.dataset.sym); });
+$('wlist').addEventListener('wheel', e=>e.stopPropagation());
+document.querySelectorAll('[data-period]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    period=btn.dataset.period;
+    if(current) loadBars(current);
+  });
+});
+function panBars(delta){
+  if(period==='intraday') return;
+  viewRight=Math.max(0, Math.min(Math.max(0, bars.length-viewCount), viewRight+delta));
+  clampView(); draw();
+}
+$('btn-left').onclick=()=>panBars(Math.max(5, Math.floor(viewCount*0.2)));
+$('btn-right').onclick=()=>panBars(-Math.max(5, Math.floor(viewCount*0.2)));
+$('btn-zi').onclick=()=>zoomAt(0.8, 0.5);
+$('btn-zo').onclick=()=>zoomAt(1.25, 0.5);
+$('btn-home').onclick=()=>{ viewRight=0; if(period==='intraday') viewCount=Math.max(20, bars.length); clampView(); draw(); };
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const layout=chartLayout&&chartLayout.price;
+  const frac=layout? Math.min(1, Math.max(0, (e.clientX-rect.left-layout.l)/Math.max(1, layout.r-layout.l))) : 0.5;
+  if(e.shiftKey){
+    const step=Math.max(2, Math.floor(viewCount*0.08));
+    panBars(e.deltaY>0?step:-step);
+  } else {
+    zoomAt(e.deltaY<0?0.88:1.14, frac);
+  }
+},{passive:false});
+canvas.addEventListener('pointerdown', e=>{
+  if(e.button!==0) return;
+  drag={x:e.clientX, viewRight, id:e.pointerId};
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e=>{
+  if(drag){
+    if(period==='intraday') return;
+    const layout=chartLayout&&chartLayout.price;
+    const nvis=chartLayout?chartLayout.nvis:viewCount;
+    const barW=layout? (layout.r-layout.l)/Math.max(1,nvis-1) : 8;
+    viewRight=drag.viewRight + Math.round((e.clientX-drag.x)/Math.max(1,barW));
+    clampView();
+    draw();
+    return;
+  }
+  const prevSlot=hoverSlot;
+  const idx=hitIndex(e.clientX);
+  if(idx===hoverIdx && hoverSlot===prevSlot) return;
+  hoverIdx=idx;
+  if(idx>=0) updateHud(bars[idx], idx);
+  else if(hoverSlot>=0 && slotToBar[hoverSlot]<0){
+    $('h-o').textContent='—'; $('h-h').textContent='—'; $('h-l').textContent='—';
+    $('h-price').textContent='—'; $('h-avg').textContent='—';
+    $('h-chg').textContent='无行情'; $('h-vol').textContent='0';
+    $('h-time').textContent=slotDateTime(hoverSlot);
+  } else if(bars.length) updateHud(bars[bars.length-1], bars.length-1);
+  draw();
+});
+canvas.addEventListener('pointerup', e=>{
+  if(drag&&drag.id===e.pointerId) drag=null;
+});
+canvas.addEventListener('pointerleave', ()=>{
+  if(drag) return;
+  hoverIdx=-1;
+  hoverSlot=-1;
+  if(bars.length) updateHud(bars[bars.length-1], bars.length-1);
+  draw();
+});
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') panBars(10);
+  if(e.key==='ArrowRight') panBars(-10);
+  if(e.key==='Home'){ viewRight=0; clampView(); draw(); }
+});
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+loadWatchlist().catch(err=>{
+  $('status').textContent='加载失败: '+err.message;
+  $('chart-hint').textContent='无法加载 /api/watchlist';
+});
+</script>
+</body>
+</html>
